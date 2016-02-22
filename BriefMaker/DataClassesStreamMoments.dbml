@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?><Database Name="Focus" Class="DataClassesStreamMomentsDataContext" xmlns="http://schemas.microsoft.com/linqtosql/dbml/2007">
+  <Connection Mode="AppSettings" ConnectionString="Data Source=.;Initial Catalog=Focus;Integrated Security=True" SettingsObjectName="BM.Properties.Settings" SettingsPropertyName="StreamMomentsConnectionString" Provider="System.Data.SqlClient" />
+  <Table Name="dbo.StreamMoments" Member="StreamMoments">
+    <Type Name="StreamMoment">
+      <Column Name="SnapshotTime" Type="System.DateTime" DbType="DateTime2 NOT NULL" IsPrimaryKey="true" CanBeNull="false" />
+      <Column Name="Data" Type="System.Data.Linq.Binary" DbType="Image NOT NULL" CanBeNull="false" UpdateCheck="Never" />
+    </Type>
+  </Table>
+</Database>

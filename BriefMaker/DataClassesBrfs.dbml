@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?><Database Name="Focus" Class="DataClassesBrfsDataContext" xmlns="http://schemas.microsoft.com/linqtosql/dbml/2007">
+  <Connection Mode="AppSettings" ConnectionString="Data Source=.;Initial Catalog=Focus;Integrated Security=True" SettingsObjectName="BM.Properties.Settings" SettingsPropertyName="StreamMomentsConnectionString" Provider="System.Data.SqlClient" />
+  <Table Name="dbo.Briefs" Member="Briefs">
+    <Type Name="Brief">
+      <Column Name="BriefID" Type="System.Int32" DbType="Int NOT NULL" IsPrimaryKey="true" CanBeNull="false" />
+      <Column Name="BriefBytes" Type="System.Data.Linq.Binary" DbType="Image" CanBeNull="true" UpdateCheck="Never" />
+    </Type>
+  </Table>
+  <Table Name="dbo.Symbols" Member="Symbols">
+    <Type Name="Symbol">
+      <Column Name="SymbolID" Type="System.Int16" DbType="SmallInt NOT NULL" CanBeNull="false" />
+      <Column Name="FullName" Type="System.String" DbType="NChar(32)" CanBeNull="true" />
+      <Column Name="Type" Type="System.String" DbType="NChar(10)" CanBeNull="true" />
+      <Column Name="Market" Type="System.String" DbType="NChar(10)" CanBeNull="true" />
+      <Column Name="Name" Type="System.String" DbType="NChar(10)" CanBeNull="true" />
+      <Column Name="TradeEnabled" Type="System.Boolean" DbType="Bit" CanBeNull="true" />
+      <Column Name="TradeQuantity" Type="System.Int32" DbType="Int" CanBeNull="true" />
+      <Column Name="Value" Type="System.Double" DbType="Float" CanBeNull="true" />
+      <Column Name="AvgVol" Type="System.Double" DbType="Float" CanBeNull="true" />
+      <Column Name="MarketCap" Type="System.Double" DbType="Float" CanBeNull="true" />
+      <Column Name="TickTypesToCapture" Type="System.String" DbType="NChar(32)" CanBeNull="true" />
+    </Type>
+  </Table>
+</Database>

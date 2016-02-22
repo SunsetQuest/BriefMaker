@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ordesignerObjectsDiagram dslVersion="1.0.0.0" absoluteBounds="0, 0, 11, 8.5" name="DataClassesStreamMoments">
+  <DataContextMoniker Name="/DataClassesStreamMomentsDataContext" />
+  <nestedChildShapes>
+    <classShape Id="f57c4b85-c919-46c0-a047-9565599ca4c0" absoluteBounds="2.25, 2.375, 2, 1.1939925130208333">
+      <DataClassMoniker Name="/DataClassesStreamMomentsDataContext/StreamMoment" />
+      <nestedChildShapes>
+        <elementListCompartment Id="385439b8-5121-461c-b31b-0007f06222e9" absoluteBounds="2.265, 2.835, 1.9700000000000002, 0.63399251302083326" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+  </nestedChildShapes>
+</ordesignerObjectsDiagram>
