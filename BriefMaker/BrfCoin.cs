@@ -2,7 +2,7 @@
 // This projected is licensed under the terms of the MIT license.
 // NO WARRANTY. THE SOFTWARE IS PROVIDED TO YOU “AS IS” AND “WITH ALL FAULTS.”
 // ANY USE OF THE SOFTWARE IS ENTIRELY AT YOUR OWN RISK.
-// Copyright (c) 2013, 2014, 2015, 2016 Ryan S. White
+// Created by Ryan S. White in 2013; Last updated in 2016.
 
 using System;
 using System.Collections.Generic;
@@ -124,7 +124,7 @@ namespace BM
                 BinaryReader reader = new BinaryReader(new MemoryStream(lastBrfImage));
                 
                 // skip over headers; don't save anything
-                reader.BaseStream.Seek(32 * sizeof(float), SeekOrigin.Begin); //for (int i = 0; i < 32; i++)  reader.ReadSingle(); 
+                reader.BaseStream.Seek(BriefMaker.HeaderCount * sizeof(float), SeekOrigin.Begin);
                 // |----HDRs+Indexes(32)---|---------------------Stocks(32x32)--------------------|
 
                 for (int s = 0; s < symbCt; s++) //for each header item
@@ -166,7 +166,7 @@ namespace BM
         }
 
         /// <summary>Let create a byteArray for DB storage. We need brfID so we can fill the headers with time and other date related data.</summary>
-        public Byte[] GetAsBinary(uint briefID)
+        public byte[] GetAsBinary(uint briefID)
         {
             MemoryStream ms = new MemoryStream();
             BinaryWriter bw = new BinaryWriter(ms);

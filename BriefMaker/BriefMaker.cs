@@ -2,7 +2,7 @@
 // This projected is licensed under the terms of the MIT license.
 // NO WARRANTY. THE SOFTWARE IS PROVIDED TO YOU “AS IS” AND “WITH ALL FAULTS.”
 // ANY USE OF THE SOFTWARE IS ENTIRELY AT YOUR OWN RISK.
-// Copyright (c) 2013, 2014, 2015, 2016 Ryan S. White
+// Created by Ryan S. White in 2013; Last updated in 2016.
 
 using System;
 using System.Collections.Generic;
@@ -32,22 +32,23 @@ namespace BM
     {
         ////////////////// User configurable values. //////////////////
         /// <summary>(6:25:06) Starting Time To for new Briefs. 6:25:00 brief is not included because time is recorded at the tail.</summary>
-        static readonly TimeSpan BEG_BRF_REC_TIME = new TimeSpan(6, 30, 6);
+        readonly TimeSpan BeginRecordTime;
         /// <summary>(6:25:01) The time when we begin to process stream moments. 6:25:00 StreamMoment is not included because time is recorded in the tail.</summary>
-        static readonly TimeSpan BEG_STRM_PROC_TIME = new TimeSpan(6, 25, 1);
+        readonly TimeSpan PreBeginBufferTime;
         /// <summary>(13:00:00) The time when we end processing of stream moments and recording briefs. We include 13:00:00 since the time is recorded in the tail.</summary>
-        static readonly TimeSpan END_REC_TIME = new TimeSpan(13, 0, 0);
+        readonly TimeSpan EndRecordTime;
         /// <summary>The number of brief writes to skip if there is not enough data to continue. (in briefs; 200 = 20 minutes)</summary>
         int MaxWaitingLoops = 200;
         /// <summary>The number of Briefs to replay to get formulas/hi/low/last/etc filled. (450=45 minutes)</summary>
-        const int ReplayAmount = 450;
-        /// <summary>The number of stocks that we are expected to work with.</summary>
-        const int StockCount = 32;
-        const int StockAttribCount = 32;
+        public const int ReplayAmount = 450;
+        /// <summary>The number of stocks that we are expected to work with. Has only been tested with 32.</summary>
+        public const int StockCount = 32;
+        /// <summary>The number of attributes that describe a stock for a time period. (hi/lo/last/vol/largestTrade/MACD/avg..) Has only been tested with 32.</summary>
+        public const int StockAttribCount = 32;
         /// <summary>The number of header items in the output. The header contains times/dates/dayOfWeek/MarketIndexes/etc. 32 would be 32(headers slots) * sizeof(float) => 128bytes.</summary>
-        const int HeaderCount = 32;
+        public const int HeaderCount = 32;
         /// <summary>The number of indexes we are pulling in. The indexes are saved in the header.</summary>
-        const int IndexCount = 7;
+        public const int IndexCount = 7;
 
         ////////////////// Runtime Items //////////////////
         /// <summary>This is the total byte size of each created brief.</summary>
@@ -56,12 +57,14 @@ namespace BM
         ServiceHost wcfReceiverHost;       
         public static BriefMaker currentInstance;               // For WCF
         public SynchronizationContext mySynchronizationContext; // For WCF
+        /// <summary>Causes WCF updates to be ignored; this is for startup or reloads</summary>
+        bool suspendWCF = true;
         /// <summary>Contains two BrfSets. Each has a brief and recent prices.</summary>
         public BriefCoin briefCoin;
         /// <summary>This is just for display.</summary>
         int totalCaptureEventsForDisplay = 0;
         /// <summary>Contains all the stock ticker symbols.</summary>
-        string[] symbols;
+        string[] stockTickers;
         /// <summary>Contains brief like data for simple indexes.</summary>
         Index[] indexes;
         /// <summary>This is used to make sure we don't skip any seconds or process the same second twice. 
@@ -69,10 +72,8 @@ namespace BM
         long mostRecentTickSubmitted = 0;
         /// <summary>For logging to the display, file, or TCPIP connection. This must be initialized in Load so NLog.config is read.</summary>
         private static NLog.Logger log, logWCF;
-        /// <summary>Causes WCF updates to be ignored; this is for startup or reloads</summary>
-        bool suspendWCF = true;
         /// <summary>Extended Indicators</summary>
-        ExtendedIndicator ei;
+        ExtendedIndicator extendedIndicators;
         /// <summary>
         /// For Startup purposes. This is an array tickers and their attributes that tells us if data has been 
         /// received yet. After data is received for every attribute on every ticker then briefs can be created.
@@ -81,7 +82,7 @@ namespace BM
         /// <summary>Used only for startup. This is so we don't upload briefs when rerunning the most recent briefs from the DB at startup.</summary>
         int onlySaveIfAfter = 0;
         /// <summary>This is the next expected TinyTime. If it is not then a warning is given.</summary>
-        int nextExpectedTT;
+        int nextExpectedTinyTime;
         /// <summary>Prevents an error from displaying too many times.</summary>
         int[] ErrorCounters = Enumerable.Repeat(500, 16).ToArray();
 
@@ -92,8 +93,12 @@ namespace BM
             InitializeComponent();
             mySynchronizationContext = SynchronizationContext.Current;
             currentInstance = this;
+
+            BeginRecordTime = Properties.Settings.Default.BeginRecordTime;
+            PreBeginBufferTime = Properties.Settings.Default.PreBeginBufferTime;
+            EndRecordTime = Properties.Settings.Default.EndRecordTime;
         }
-        
+
         private void BriefMaker_Load(object sender, EventArgs e)
         {
             /////////// Setup logger ///////////
@@ -105,10 +110,13 @@ namespace BM
             // useful link: http://stackoverflow.com/questions/11267071/how-can-a-self-hosted-winform-wcf-service-interact-with-the-main-form
             // Source: https://msdn.microsoft.com/en-us/library/ms730935.aspx
             suspendWCF = true;
-            logWCF.Debug("Initializing WCF"); 
-            Uri baseAddress = new Uri(Properties.Settings.Default.DirectBriefMakerDataSource);  // Step 1 Create a URI to serve as the base address.
-            wcfReceiverHost = new ServiceHost(typeof(BriefMakerService), baseAddress);          // Step 2 Create a ServiceHost instance
-            wcfReceiverHost.Open(); //temp                                                      // Step 5 Start the service.
+            logWCF.Debug("Initializing WCF");
+            // Create a URI to serve as the base address.
+            Uri baseAddress = new Uri(Properties.Settings.Default.DirectBriefMakerDataSource);
+            // Create a ServiceHost instance.
+            wcfReceiverHost = new ServiceHost(typeof(BriefMakerService), baseAddress);
+            // Start the service.
+            wcfReceiverHost.Open();
             logWCF.Debug("Initializing WCF completed");
 
             // BeginInvoke is just so we see the form during loading
@@ -126,13 +134,13 @@ namespace BM
             using (var dc = new DataClassesBrfsDataContext())
             {
                 /////////// Download Stock Symbols ///////////
-                symbols = (from symb in dc.Symbols
+                stockTickers = (from symb in dc.Symbols
                            where symb.Type.Equals("STK")
                            orderby symb.SymbolID
                            select symb.Name.Trim()).ToArray();
-                if (symbols.Count() != StockCount)
+                if (stockTickers.Count() != StockCount)
                 {
-                    log.Error("There were {0} stock symbols found. Currently BriefMaker supports a hard value of 32 items.", symbols.Count());
+                    log.Error("There were {0} stock symbols found. Currently BriefMaker supports a hard value of 32 items.", stockTickers.Count());
                     return;
                 }
 
@@ -140,10 +148,10 @@ namespace BM
                 indexes = (from s in dc.Symbols
                            where s.Type.Equals("IND")
                            orderby s.SymbolID
-                           select new Index(s.SymbolID, s.Name)).ToArray();
+                           select new Index(s.SymbolID, s.Name.Trim())).ToArray();
                 if (indexes.Count() != IndexCount)
                 {
-                    log.Error("There were {0} index symbols found. Currently BriefMaker supports a hard value of 32 items.", symbols.Count());
+                    log.Error("There were {0} index symbols found. Currently BriefMaker supports a hard value of 32 items.", stockTickers.Count());
                     return;
                 }
 
@@ -154,11 +162,11 @@ namespace BM
                         waitingForData[i, a] = true; //set waiting for data to true for everything
 
                 /////////// Setup Extended Indicators ///////////
-                ei = new ExtendedIndicator(StockCount);
+                extendedIndicators = new ExtendedIndicator(StockCount);
 
                 /////////// Get 450 Briefs back from database so we can replay them to get extended indexes ///////////
-                if (ReplayAmount <= ei.hist_min_sz + 2)
-                    log.Error("backAmt({0}) is less then ei.hist_min_sz({1}) ", ReplayAmount, (ei.hist_min_sz + 2));
+                if (ReplayAmount <= extendedIndicators.MinimumHistorySize)
+                    log.Error("backAmt({0}) is less then ei.MinimumHistorySize({1}) ", ReplayAmount, (extendedIndicators.MinimumHistorySize));
 
                 // Check to see if there are any brief to pick up where we left off.
                 if (dc.Briefs.Any()) 
@@ -169,7 +177,7 @@ namespace BM
                                    select b).First();
 
                     onlySaveIfAfter = lastBrief.BriefID;
-                    nextExpectedTT = lastBrief.BriefID + 1;
+                    nextExpectedTinyTime = lastBrief.BriefID + 1;
                     int brfIDNearWantedStart = lastBrief.BriefID - ReplayAmount;
 
 
@@ -192,13 +200,13 @@ namespace BM
                     // |----HDRs+Indexes(32)---|-------------------32 Stocks X 32 Attributes ----------------|
                     briefCoin = new BriefCoin(StockCount, indexes, startingBriefImg);
                 }
-                else //the DB is empty, lets BEG_STRM_PROC_TIME fresh
+                else //the DB is empty, lets PreBeginBufferTime fresh
                 {
                     briefCoin = new BriefCoin(StockCount, indexes);
                     mostRecentTickSubmitted = 0;
                 }
             } //end using DataClassesBrfsDataContext
-
+            
             LoadLatestStreamMomentsFromDB();
             onlySaveIfAfter = 0; //hack: do we need this?
             suspendWCF = false;
@@ -212,8 +220,8 @@ namespace BM
                 progressBar1.Maximum = 
                        (from s in dcsm.StreamMoments
                         where s.SnapshotTime >= (new DateTime(mostRecentTickSubmitted + TimeSpan.TicksPerSecond))
-                        //&& s.SnapshotTime.Hour > BEG_STRM_PROC_TIME // very slow
-                        //&& s.SnapshotTime.TimeOfDay <= END_REC_TIME // very slow
+                        //&& s.SnapshotTime.Hour > PreBeginBufferTime // very slow
+                        //&& s.SnapshotTime.TimeOfDay <= EndRecordTime // very slow
                         orderby s.SnapshotTime
                         select s).Count();
             }
@@ -232,26 +240,27 @@ namespace BM
 
                     var streamMoments = (from s in dcsm_download.StreamMoments
                                          where s.SnapshotTime >= (new DateTime(mostRecentTickSubmitted + TimeSpan.TicksPerSecond))
-                                         //&& s.SnapshotTime.Hour > BEG_STRM_PROC_TIME // very slow
-                                         //&& s.SnapshotTime.TimeOfDay <= END_REC_TIME // very slow
+                                         //&& s.SnapshotTime.Hour > PreBeginBufferTime // very slow
+                                         //&& s.SnapshotTime.TimeOfDay <= EndRecordTime // very slow
                                          orderby s.SnapshotTime
                                          select s).Take(PageSz);
 
 
-                    // Quit if we there are not more - this also makes sure there are no stragglers
+                    // Quit if there are no more.
                     if (!streamMoments.Any())
                         break;
 
                     foreach (var streamMoment in streamMoments)
                     {
-                        long streamTimeInTicks = (streamMoment.SnapshotTime.Ticks / TimeSpan.TicksPerSecond) * TimeSpan.TicksPerSecond;  // Round down to second
+                        // Round down to second
+                        long streamTimeInTicks = (streamMoment.SnapshotTime.Ticks / TimeSpan.TicksPerSecond) * TimeSpan.TicksPerSecond;
 
-                        // We want to skip any steamMoments that are not in normal trading hours or the 5 minutes before.
+                        // We want to skip any steamMoments that are not between in normal trading hours or the 5 minutes before.
                         DateTime momentTime = new DateTime(streamTimeInTicks);
                         if (!IsNormalBusinessHoursForStreamProcessing(momentTime))
                         {
                             //momentTime = TinyTime6Sec.GetNextValidDateTime(momentTime);
-                            mostRecentTickSubmitted = streamTimeInTicks;//momentTime.Ticks - TimeSpan.TicksPerSecond - (60 * 5 * TimeSpan.TicksPerSecond);
+                            mostRecentTickSubmitted = streamTimeInTicks; //momentTime.Ticks - TimeSpan.TicksPerSecond - (60 * 5 * TimeSpan.TicksPerSecond);
                             continue;
                         }
 
@@ -261,7 +270,10 @@ namespace BM
                         if (streamTimeInTicks != nextExpectedTicks)
                         {
                             DateTime nextExpectedDateTime = new DateTime(nextExpectedTicks);
-                            log.Debug("Expected {0}({1}) but got {2}({3})", (new DateTime(nextExpectedTicks)).ToString("HH:mm:ss.ffff"), (mostRecentTickSubmitted + TimeSpan.TicksPerSecond), momentTime.ToString("HH:mm:ss.ffff"), streamTimeInTicks);
+                            log.Debug("Expected {0}({1}) but got {2}({3})", 
+                                (new DateTime(nextExpectedTicks)).ToString("HH:mm:ss.ffff"), 
+                                (mostRecentTickSubmitted + TimeSpan.TicksPerSecond), 
+                                momentTime.ToString("HH:mm:ss.ffff"), streamTimeInTicks);
 
                             if (0 == mostRecentTickSubmitted)
                             { // brand new  - database is empty
@@ -287,12 +299,18 @@ namespace BM
                                 if (gapSizeInSeconds > 3600)
                                 {
                                     if (ErrorCounters[5]-- > 0)
-                                        log.Warn("Large gap in StreamMoments from {0} to {1}. minutes={2}", (new DateTime(nextExpectedTicks)).ToString("ddd M/d/yy h:mm:ss.f tt"), (new DateTime(streamTimeInTicks - TimeSpan.TicksPerSecond)).ToString("h:mm:ss.f"), gapSizeForPrint);
+                                        log.Warn("Large gap in StreamMoments from {0} to {1}. minutes={2}", 
+                                            (new DateTime(nextExpectedTicks)).ToString("ddd M/d/yy h:mm:ss.f tt"), 
+                                            (new DateTime(streamTimeInTicks - TimeSpan.TicksPerSecond)).ToString("h:mm:ss.f"), 
+                                            gapSizeForPrint);
                                 }
                                 else
                                 {
                                     if (ErrorCounters[6]-- > 0)
-                                        log.Info("Small gap in StreamMoments from {0} to {1}. minutes={2}", (new DateTime(nextExpectedTicks)).ToString("ddd M/d/yy h:mm:ss.f tt"), (new DateTime(streamTimeInTicks - TimeSpan.TicksPerSecond)).ToString("h:mm:ss.f"), gapSizeForPrint);
+                                        log.Info("Small gap in StreamMoments from {0} to {1}. minutes={2}", 
+                                            (new DateTime(nextExpectedTicks)).ToString("ddd M/d/yy h:mm:ss.f tt"), 
+                                            (new DateTime(streamTimeInTicks - TimeSpan.TicksPerSecond)).ToString("h:mm:ss.f"), 
+                                            gapSizeForPrint);
                                 }
                                 while (streamTimeInTicks > (mostRecentTickSubmitted + TimeSpan.TicksPerSecond))
                                 {
@@ -304,10 +322,10 @@ namespace BM
                                     else
                                     {
                                         // jump to starting time later in the morning(if pre am) or tomorrow morning(if pm)
-                                        if (time.TimeOfDay < BEG_STRM_PROC_TIME)
-                                            mostRecentTickSubmitted = time.Date.Add(BEG_STRM_PROC_TIME).Ticks - TimeSpan.TicksPerSecond;
+                                        if (time.TimeOfDay < PreBeginBufferTime)
+                                            mostRecentTickSubmitted = time.Date.Add(PreBeginBufferTime).Ticks - TimeSpan.TicksPerSecond;
                                         else
-                                            mostRecentTickSubmitted = time.Date.AddDays(1).Add(BEG_STRM_PROC_TIME).Ticks - TimeSpan.TicksPerSecond;
+                                            mostRecentTickSubmitted = time.Date.AddDays(1).Add(PreBeginBufferTime).Ticks - TimeSpan.TicksPerSecond;
                                     }
                                 }
                                 if (ErrorCounters[8]-- > 0)
@@ -340,9 +358,9 @@ namespace BM
                 }
                 //System.GC.Collect();
                 toolStripStatusLabelEventCt.Text = totalCaptureEventsForDisplay.ToString();
-                this.Refresh();
+                Refresh();
                 Application.DoEvents();
-                System.Threading.Thread.Sleep(0);
+                Thread.Sleep(0);
             };
 
             progressBar1.Value = 0;
@@ -350,9 +368,12 @@ namespace BM
 
         }
 
+        /// <summary>
+        /// Uploads a stream-moment directly via WCF. This function is called by a WCF thread.
+        /// </summary>
         public void AddDataStreamMomentUsingWCF(byte[] streamMoment)
         {
-            //System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Highest; // does not seem to help
+            //System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Highest; // does help with performance
             
             if (suspendWCF)
             {
@@ -366,14 +387,13 @@ namespace BM
                 return;
             }
 
-
             logWCF.Debug("Entering AddDataStreamMomentUsingWCF()");
 
             long[] streamTimeTicks2 = new long[1]; //array of one item
             Buffer.BlockCopy(streamMoment, 0, streamTimeTicks2, 0, sizeof(long));
             long streamTimeInTicks = (streamTimeTicks2[0] / TimeSpan.TicksPerSecond) * TimeSpan.TicksPerSecond; //round down to second
 
-            BinaryReader reader = new BinaryReader(new MemoryStream(streamMoment)); //TODO: Delete this because I added "Blockcopy" above but need to check it
+            BinaryReader reader = new BinaryReader(new MemoryStream(streamMoment)); //TODO: Delete this because I added "Blockcopy" a few lines above but need to check it
             streamTimeInTicks = (reader.ReadInt64() / TimeSpan.TicksPerSecond) * TimeSpan.TicksPerSecond; //round down to second
 
 
@@ -381,7 +401,11 @@ namespace BM
             long nextExpectedTicks = (mostRecentTickSubmitted + TimeSpan.TicksPerSecond); 
             if (streamTimeInTicks != nextExpectedTicks)
             {
-                logWCF.Debug("Expected {0}({1}) but got {2}({3})", (new DateTime(nextExpectedTicks)).ToString("HH:mm:ss.ffff"), (mostRecentTickSubmitted + TimeSpan.TicksPerSecond), (new DateTime(streamTimeInTicks)).ToString("HH:mm:ss.ffff"), streamTimeInTicks);
+                logWCF.Debug("Expected {0}({1}) but got {2}({3})", 
+                    (new DateTime(nextExpectedTicks)).ToString("HH:mm:ss.ffff"), 
+                    (mostRecentTickSubmitted + TimeSpan.TicksPerSecond), 
+                    (new DateTime(streamTimeInTicks)).ToString("HH:mm:ss.ffff"), 
+                    streamTimeInTicks);
                 
                 if (0 == mostRecentTickSubmitted)
                 { // brand new update
@@ -424,10 +448,12 @@ namespace BM
             AddStreamMoment(streamMoment, streamTimeInTicks, false);
         }
 
+        // Caution: This function can be called by either a UI or a WCF threads.
         public void AddStreamMoment(byte[] streamMoment, long streamTimeInTicks,  bool bulkMode)
         {
             DateTime streamDataTime = new DateTime(streamTimeInTicks);
-            log.Debug("Entering AddStreamMoment(streamTimeInTicks={0}, time={1}, bulkMode={2})", streamTimeInTicks, streamDataTime.ToString("ddd M/d/yy h:mm:ss.f tt"), bulkMode);
+            log.Debug("Entering AddStreamMoment(streamTimeInTicks={0}, time={1}, bulkMode={2})", 
+                streamTimeInTicks, streamDataTime.ToString("ddd M/d/yy h:mm:ss.f tt"), bulkMode);
 
             BinaryReader br = new BinaryReader(new MemoryStream(streamMoment));
             br.BaseStream.Position = 8; // skip past datetimeTicks - this will be filled in later.
@@ -437,17 +463,17 @@ namespace BM
                 log.Error("streamMoment.bytes.length should be (8 + x * 7) at {0}", streamDataTime.ToString("ddd M/d/yy h:mm:ss.f tt"));
 
             // Now Read in all data
-            //StringBuilder sb = new StringBuilder(); //for debug
-            //string[] TickTypes =  { "bidSz","bid","ask","askSz","last","lastSz","??6","??7","vol","??","??10","??11"}; //for debug
+            //StringBuilder sb = new StringBuilder(); // uncomment to aid in debugging
+            //string[] TickTypes =  { "bidSz","bid","ask","askSz","last","lastSz","??6","??7","vol","??","??10","??11"}; // uncomment to aid in debugging
             while (br.BaseStream.Position < br.BaseStream.Length)
             {
-                /*byte timeFraction =*/
-                br.ReadByte(); //read time fraction - not really used yet
+                byte timeFraction = br.ReadByte(); //read time fraction - not really used yet
                 IB_TickType tickType = (IB_TickType)br.ReadByte();
                 byte id = br.ReadByte();
                 float val = br.ReadSingle();
 
-                if (id >= StockCount + IndexCount) //lets make sure we exclude higher id values (added 10/2/2013)
+                // Make sure we exclude higher id values (added 10/2/2013)
+                if (id >= StockCount + IndexCount)
                     continue;
 
                 //sb.AppendLine(streamDataTime.ToString("ddd M/d/yy h:mm:ss.f tt") + "." + timeFraction + ", " + symbols[id] + ", " + TickTypes[tickType] + ", " + val.ToString());
@@ -458,7 +484,7 @@ namespace BM
                     indexes[id - StockCount].ContributeItem(tickType, val);
             }
 
-            //DumpTextToDesktopFile(sb); //for debug
+            //DumpTextToDesktopFile(sb); // uncomment to aid in debugging
 
             int second = streamDataTime.Second % 6;
             if (second == 1)
@@ -470,20 +496,20 @@ namespace BM
             mostRecentTickSubmitted = streamTimeInTicks;
 
             if (!bulkMode)
-                this.Invoke((MethodInvoker)delegate
+                Invoke((MethodInvoker)delegate
                 {
                     toolStripStatusLabelEventCt.Text = (totalCaptureEventsForDisplay++).ToString();
                 });  // runs on UI thread 
             log.Debug("Exiting AddStreamMoment(streamTimeInTicks={0}, bulkMode={1})", streamTimeInTicks, bulkMode);
-            br.BaseStream.Dispose();
+            br.BaseStream.Dispose();  //todo: can we remove this
             br.Dispose();
         }
 
-        private void FinalizeAndUploadBrief(DateTime time,  bool bulkMode)
+        private void FinalizeAndUploadBrief(DateTime time, bool inBulkMode)
         {
-            log.Debug("Entering FinalizeAndUploadBrief() time={0}, bulkMode={1}", time.ToString("ddd M/d/yy h:mm:ss.f tt"), bulkMode);
+            log.Debug("Entering FinalizeAndUploadBrief() time={0}, bulkMode={1}", time.ToString("ddd M/d/yy h:mm:ss.f tt"), inBulkMode);
 
-            //save any values from the END_REC_TIME of the previous brief that we might want to use later
+            //save any values from the EndRecordTime of the previous brief that we might want to use later
             float[] last_buyy_price = new float[StockCount];
             float[] last_sell_price = new float[StockCount];
             for (int s = 0; s < StockCount; s++)
@@ -509,8 +535,8 @@ namespace BM
                 close[s] = briefCoin.processingBrief.symbols[s].price_last;
                 vol[s] = briefCoin.processingBrief.symbols[s].volume_ths;
             }
-            ei.AddBrfRow(high, low, close, vol);
-            float[/*symbol*/][/*ind*/] extIndexes = ei.CalcIndicators();
+            extendedIndicators.AddBrfRow(high, low, close, vol);
+            float[/*symbol*/][/*ind*/] extIndexes = extendedIndicators.CalcIndicators();
 
 
             //////////// Finalize - Add Statistics info /////////////////////
@@ -545,20 +571,20 @@ namespace BM
                 {
                     PartialBriefWithPrices bs = briefCoin.processingBrief.symbols[i];
 
-                    if (waitingForData[i, 0] && !(bs.volume_day > 1.00)) log.Debug("Waiting for: {0}({1})-volume_day > 1     val:{2}", symbols[i], i, bs.volume_day); else waitingForData[i, 0] = false;
-                    if (waitingForData[i, 1] && !(bs.volume_ths > 1.00)) log.Debug("Waiting for: {0}({1})-volume_ths > 1     val:{2}", symbols[i], i, bs.volume_ths); else waitingForData[i, 1] = false;
-                    if (waitingForData[i, 2] && !(bs.price_askk > 0.01)) log.Debug("Waiting for: {0}({1})-price_askk > 0.01  val:{2}", symbols[i], i, bs.price_askk); else waitingForData[i, 2] = false;
-                    if (waitingForData[i, 3] && !(bs.price_bidd > 0.01)) log.Debug("Waiting for: {0}({1})-price_bidd > 0.01  val:{2}", symbols[i], i, bs.price_bidd); else waitingForData[i, 3] = false;
-                    if (waitingForData[i, 4] && !(bs.volume_bid > 1.00)) log.Debug("Waiting for: {0}({1})-volume_bid > 1     val:{2}", symbols[i], i, bs.volume_bid); else waitingForData[i, 4] = false;
-                    if (waitingForData[i, 5] && !(bs.volume_ask > 1.00)) log.Debug("Waiting for: {0}({1})-volume_ask > 1     val:{2}", symbols[i], i, bs.volume_ask); else waitingForData[i, 5] = false;
+                    if (waitingForData[i, 0] && !(bs.volume_day > 1.00)) log.Debug("Waiting for: {0}({1})-volume_day > 1     val:{2}", stockTickers[i], i, bs.volume_day); else waitingForData[i, 0] = false;
+                    if (waitingForData[i, 1] && !(bs.volume_ths > 1.00)) log.Debug("Waiting for: {0}({1})-volume_ths > 1     val:{2}", stockTickers[i], i, bs.volume_ths); else waitingForData[i, 1] = false;
+                    if (waitingForData[i, 2] && !(bs.price_askk > 0.01)) log.Debug("Waiting for: {0}({1})-price_askk > 0.01  val:{2}", stockTickers[i], i, bs.price_askk); else waitingForData[i, 2] = false;
+                    if (waitingForData[i, 3] && !(bs.price_bidd > 0.01)) log.Debug("Waiting for: {0}({1})-price_bidd > 0.01  val:{2}", stockTickers[i], i, bs.price_bidd); else waitingForData[i, 3] = false;
+                    if (waitingForData[i, 4] && !(bs.volume_bid > 1.00)) log.Debug("Waiting for: {0}({1})-volume_bid > 1     val:{2}", stockTickers[i], i, bs.volume_bid); else waitingForData[i, 4] = false;
+                    if (waitingForData[i, 5] && !(bs.volume_ask > 1.00)) log.Debug("Waiting for: {0}({1})-volume_ask > 1     val:{2}", stockTickers[i], i, bs.volume_ask); else waitingForData[i, 5] = false;
                     waitingForData[i, 6] = false; //if (waitingForData[i, 6] && !(bs.buyy_price > 0.01)) logger.Debug("Waiting for: {0}({1})-buyy_price > 0.01  val:{2}", symbols[i], i, bs.buyy_price); else waitingForData[i, 6] = false;
                     waitingForData[i, 7] = false; //if (waitingForData[i, 7] && !(bs.sell_price > 0.01)) logger.Debug("Waiting for: {0}({1})-sell_price > 0.01  val:{2}", symbols[i], i, bs.sell_price); else waitingForData[i, 7] = false;
-                    if (waitingForData[i, 8] && !(bs.price_last > 0.01)) log.Debug("Waiting for: {0}({1})-price_last > 0.01  val:{2}", symbols[i], i, bs.price_last); else waitingForData[i, 8] = false;
+                    if (waitingForData[i, 8] && !(bs.price_last > 0.01)) log.Debug("Waiting for: {0}({1})-price_last > 0.01  val:{2}", stockTickers[i], i, bs.price_last); else waitingForData[i, 8] = false;
                     waitingForData[i, 9] = false; //if (waitingForData[i, 9 ] && !(bs.largTrdVol > 1.00)) logger.Debug("Waiting for: {0}({1})-largTrdVol > 1    val:{2}", symbols[i], i, bs.largTrdVol); else waitingForData[i, 9] = false;
                     waitingForData[i, 10] = false;//if (waitingForData[i, 10] && !(bs.vol_at_ask > 1.00)) logger.Debug("Waiting for: {0}({1})-vol_at_ask > 1    val:{2}", symbols[i], i, bs.vol_at_ask); else waitingForData[i, 10] = false;
                     waitingForData[i, 11] = false;//if (waitingForData[i, 11] && !(bs.vol_no_chg > 1.00))logger.Debug("Waiting for: {0}({1})-vol_no_chg > 1     val:{2}", symbols[i], i, bs.vol_no_chg); else waitingForData[i, 11] = false;
                     waitingForData[i, 12] = false;//if (waitingForData[i, 12] && !(bs.vol_at_bid > 1.00))logger.Debug("Waiting for: {0}({1})-vol_at_bid > 1     val:{2}", symbols[i], i, bs.vol_at_bid); else waitingForData[i, 12] = false;
-                    // Set the remaining to false since we don't need to wait for data on other ticktypes.
+                    // Set the remaining to false since we don't need to wait for data on other tick-types.
                     for (int s = 13; s < StockCount; s++)
                         waitingForData[i, s] = false;
                 }
@@ -674,7 +700,7 @@ namespace BM
                         log.Warn(sb.ToString());
                 }
 
-                // removed on 4/21/2014 - lets try going without this for awhile
+                // removed on 4/21/2014 - this would slightly randomize the buy and sell price
                 ///////////// Slightly randomize the buy/sell prices  ////////////////
                 //if (buyy > 0.25f)
                 //    buyy += (float)((Ryan.utils.rand.NextDouble() - .5) / 3000.0);
@@ -717,21 +743,21 @@ namespace BM
             if (!IsNormalBusinessHoursForBrf(time))
             {
                 log.Debug("The market is closed.  Hours: {0}-{1}  Time: {2}" + TinyTime6Sec.START_HOUR, TinyTime6Sec.END_HOUR, time);
-                if (!bulkMode)
-                    this.Invoke((MethodInvoker)delegate { toolStripStatusLabelMarketOpen.Text = "Closed"; });  // delegate not really needed anymore because this runs on the UI thread
+                if (!inBulkMode)
+                    Invoke((MethodInvoker)delegate { toolStripStatusLabelMarketOpen.Text = "Closed"; });  // delegate not really needed anymore because this runs on the UI thread
             }
             else  // Upload Briefs
             {
                 log.Debug("Processing the 6th streamMoment {0} for Brief {1}", time, (TinyTime6Sec)time);
-                TinyTime6Sec tinyTime = (TinyTime6Sec)time;
+                TinyTime6Sec tinyTime = time;
 
                 // lets check to see if this is the next expected TT
-                if (nextExpectedTT != tinyTime)
+                if (nextExpectedTinyTime != tinyTime)
                 {
-                    log.Warn("briefID will not be continuous. The next expected briefID was {0} but processing {1}", nextExpectedTT, (int)tinyTime);
-                    nextExpectedTT = tinyTime;
+                    log.Warn("briefID will not be continuous. The next expected briefID was {0} but processing {1}", nextExpectedTinyTime, (int)tinyTime);
+                    nextExpectedTinyTime = tinyTime;
                 }
-                nextExpectedTT ++;
+                nextExpectedTinyTime ++;
 
                 //Save it to the database    
                 Brief briefToSave = new Brief()
@@ -742,7 +768,7 @@ namespace BM
                 
                 try
                 {
-                    if (bulkMode)
+                    if (inBulkMode)
                     {
                         if (briefToSave.BriefID > onlySaveIfAfter) //when replaying, we don't want to save brfs that are already there
                         {
@@ -771,14 +797,17 @@ namespace BM
                     log.Error("Error submitting new brief({0}) to DB. Msg:{1}", (int)tinyTime, ex.Message);
                 }
                 
-                if (!bulkMode)
+                if (!inBulkMode)
                     Invoke((MethodInvoker)delegate { 
                         toolStripStatusLabelLastBrfID.Text = ((int)tinyTime).ToString();
                         toolStripStatusLabelMarketOpen.Text = "Open";
                     });  // runs on UI thread 
             }
 
-            // Reset commonIndexes (note: commonIndexes are not flipped like a coin) //todo:this is not perfect. Since we allow updates to commonIndexes a few milliseconds after we flip the coin(and before we upload it) that is not consistent with the normal stock values.  I think its okay though for now.
+            // Reset commonIndexes (note: commonIndexes are not flipped like a coin) 
+            //todo:this is not perfect. Since we allow updates to commonIndexes a few milliseconds 
+            //     after we flip the coin(and before we upload it) that is not consistent with the 
+            //     normal stock values. I think its okay though for now.
             indexes[0].tickTypeAttrib[(int)IB_TickType.lastPc_4].StartNexPeriod(); 
             indexes[1].tickTypeAttrib[(int)IB_TickType.bidSz__0].StartNexPeriod(); 
             indexes[1].tickTypeAttrib[(int)IB_TickType.bidPc__1].StartNexPeriod(); 
@@ -796,7 +825,7 @@ namespace BM
             indexes[6].tickTypeAttrib[(int)IB_TickType.askPc__2].StartNexPeriod(); 
             indexes[6].tickTypeAttrib[(int)IB_TickType.lastPc_4].StartNexPeriod(); 
 
-            log.Debug("Exiting Fi4nalizeAndUploadBrief() time={0}, bulkMode={1}", time.ToString("ddd M/d/yy h:mm:ss.f tt"), bulkMode);
+            log.Debug("Exiting Fi4nalizeAndUploadBrief() time={0}, bulkMode={1}", time.ToString("ddd M/d/yy h:mm:ss.f tt"), inBulkMode);
             high = null;
             low = null;
             close = null;
@@ -827,30 +856,30 @@ namespace BM
                 }
             }
         }
-        private static bool IsNormalBusinessHoursForBrf(DateTime time)
+
+        private bool IsNormalBusinessHoursForBrf(DateTime time)
         {
             bool isWeekend = (time.DayOfWeek == DayOfWeek.Saturday) || (time.DayOfWeek == DayOfWeek.Sunday);
-            bool isMarketClosed = (time.TimeOfDay < BEG_BRF_REC_TIME) || (time.TimeOfDay > END_REC_TIME); //Updated 3/19/2013 to ONLY market hours
+            bool isMarketClosed = (time.TimeOfDay < BeginRecordTime) || (time.TimeOfDay > EndRecordTime); //Updated 3/19/2013 to ONLY market hours
             return !(isMarketClosed || isWeekend);
         }
 
-        private static bool IsNormalBusinessHoursForStreamProcessing(DateTime time)
+        private bool IsNormalBusinessHoursForStreamProcessing(DateTime time)
         {
             TinyTime6Sec.CheckDateRange(time);
             bool isWeekend = (time.DayOfWeek == DayOfWeek.Saturday) || (time.DayOfWeek == DayOfWeek.Sunday);
-            bool isMarketClosed = (time.TimeOfDay < BEG_STRM_PROC_TIME) || (time.TimeOfDay > END_REC_TIME); //Updated 3/19/2013 to ONLY market hours
+            bool isMarketClosed = (time.TimeOfDay < PreBeginBufferTime) || (time.TimeOfDay > EndRecordTime); //Updated 3/19/2013 to ONLY market hours
             return !(isMarketClosed || isWeekend);
         }
-
 
         private void LogIfOutOfRange(StringBuilder sb, float value, float low, float high, int symbolID, DateTime time, string attribDesc)
         {
             if (value < low)
-                sb.AppendFormat("{0} {4} is below the min value of {5} for {1}({2})-{3}.", time.ToString("G"), symbols[symbolID], symbolID, attribDesc, value, low);
+                sb.AppendFormat("{0} {4} is below the min value of {5} for {1}({2})-{3}.", time.ToString("G"), stockTickers[symbolID], symbolID, attribDesc, value, low);
             else if (value > high)
-                sb.AppendFormat("{0} {4} is above the max value of {5} for {1}({2})-{3}.", time.ToString("G"), symbols[symbolID], symbolID, attribDesc, value, high);
+                sb.AppendFormat("{0} {4} is above the max value of {5} for {1}({2})-{3}.", time.ToString("G"), stockTickers[symbolID], symbolID, attribDesc, value, high);
 
-            // todo: maybe use "ErrorCounters" here to prevent too many from showing (it clogs up the system)
+            // todo: maybe use "ErrorCounters" here to prevent a flood of messages from happening. (it clogs up the system)
         }
 
         /// <summary>
@@ -1037,13 +1066,13 @@ namespace BM
 
         private void btnRebuildDBfromStreamMoments_Click(object sender, EventArgs e)
         {
-            if (DialogResult.Yes != MessageBox.Show("Delete all data from the Briefs and Preds tables?", "Warning", MessageBoxButtons.YesNo))
+            if (DialogResult.Yes != MessageBox.Show("Delete all data from the Briefs and Predictions tables?", "Warning", MessageBoxButtons.YesNo))
                 return;
             
             suspendWCF = true;
             MaxWaitingLoops = 250;
             totalCaptureEventsForDisplay = 0; 
-            log.Debug("Deleting all briefs and Preds in DB...");
+            log.Debug("Deleting all briefs and Predictions in DB...");
             using (var dc = new DataClassesBrfsDataContext())
             {
                 dc.CommandTimeout = 500;
@@ -1057,7 +1086,9 @@ namespace BM
 
         private void BriefMaker_FormClosing(object sender, FormClosingEventArgs e)
         {
-            UnLoadLoadedBriefs(); // Close the ServiceHostBase to shutdown the service.
+            // Close the ServiceHostBase to shutdown the service.
+            // wcfReceiverHost.Close(); //todo: need to add this line (not tested however)
+            UnLoadLoadedBriefs(); 
         }
 
         private void UnLoadLoadedBriefs()

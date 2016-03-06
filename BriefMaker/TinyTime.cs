@@ -2,7 +2,7 @@
 // This projected is licensed under the terms of the MIT license.
 // NO WARRANTY. THE SOFTWARE IS PROVIDED TO YOU “AS IS” AND “WITH ALL FAULTS.”
 // ANY USE OF THE SOFTWARE IS ENTIRELY AT YOUR OWN RISK.
-// Copyright (c) 2013, 2014, 2015, 2016 Ryan S. White
+// Created by Ryan S. White in 2013; Last updated in 2016.
 
 using System;
 
@@ -492,7 +492,7 @@ namespace BM
             return tt;
         }
 
-        /// <summary>Gets the number of 6 second ticks since the BEG_STRM_PROC_TIME of the day.</summary>
+        /// <summary>Gets the number of 6 second ticks since the PreBeginBufferTime of the day.</summary>
         public uint TicksToday { get { return val % TICKS_IN_ACTIVE_HOURS; } }
     }
 
