@@ -25,10 +25,10 @@
       <Value Profile="(Default)">06:30:06</Value>
     </Setting>
     <Setting Name="EndRecordTime" Type="System.TimeSpan" Scope="Application">
-      <Value Profile="(Default)">06:25:01</Value>
+      <Value Profile="(Default)">13:00:00</Value>
     </Setting>
     <Setting Name="PreBeginBufferTime" Type="System.TimeSpan" Scope="Application">
-      <Value Profile="(Default)">13:00:00</Value>
+      <Value Profile="(Default)">06:25:01</Value>
     </Setting>
   </Settings>
 </SettingsFile>

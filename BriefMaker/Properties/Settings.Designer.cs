@@ -63,7 +63,7 @@ namespace BM.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("06:25:01")]
+        [global::System.Configuration.DefaultSettingValueAttribute("13:00:00")]
         public global::System.TimeSpan EndRecordTime {
             get {
                 return ((global::System.TimeSpan)(this["EndRecordTime"]));
@@ -72,7 +72,7 @@ namespace BM.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("13:00:00")]
+        [global::System.Configuration.DefaultSettingValueAttribute("06:25:01")]
         public global::System.TimeSpan PreBeginBufferTime {
             get {
                 return ((global::System.TimeSpan)(this["PreBeginBufferTime"]));

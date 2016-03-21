@@ -4,7 +4,6 @@
 // ANY USE OF THE SOFTWARE IS ENTIRELY AT YOUR OWN RISK.
 // Created by Ryan S. White in 2013; Last updated in 2016.
 
-using System;
 using System.ServiceModel;
 
 // Information Source http://stackoverflow.com/a/11267980/2352507
@@ -25,7 +24,7 @@ namespace BM
     public interface IBriefMaker
     {
         [OperationContract]
-        void AddDataStreamMomentUsingWCF(Byte[] data);
+        void AddDataStreamMomentUsingWCF(byte[] data);
     }
 }
 

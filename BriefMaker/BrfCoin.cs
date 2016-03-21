@@ -217,38 +217,38 @@ namespace BM
             ////////////// fill-in symbol information ///////////////////////
             for (int s = 0; s < symbCt; s++) 
             {
-                bw.Write(symbols[s].volume_day); // 0 |float volume_day|carried         |days total volume
-                bw.Write(symbols[s].volume_ths); // 1 |float volume_ths|reset+running   |volume for this time period (calculated)
-                bw.Write(symbols[s].largTrdPrc); // 2 |float largTrdPrc|reset+running   |price at when largest trade 
-                bw.Write(symbols[s].price_high); // 3 |float price_high|reset+running   |highest price in period
-                bw.Write(symbols[s].price_loww); // 4 |float price_loww|reset+running   |lowest price in period
-                bw.Write(symbols[s].price_last); // 5 |float price_last|carried         |last trade price
-                bw.Write(symbols[s].price_bidd); // 6 |float price_bidd|carried         |last bid price
-                bw.Write(symbols[s].price_askk); // 7 |float price_askk|carried         |last ask price
-                bw.Write(symbols[s].volume_bid); // 8 |float volume_bid|carried         |last bid size
-                bw.Write(symbols[s].volume_ask); // 9 |float volume_ask|carried         |last ask size
-                bw.Write(symbols[s].price_medn); // 10|float price_medn|overwritten     |Statistics median for price
-                bw.Write(symbols[s].price_mean); // 11|float price_mean|overwritten     |Statistics mean for price
-                bw.Write(symbols[s].price_mode); // 12|float price_mode|overwritten     |Statistics mode for price
-                bw.Write(symbols[s].buyy_price); // 13|float buyy_price|carried         |A guess at what the buy price might be.
-                bw.Write(symbols[s].sell_price); // 14|float sell_price|carried         |A guess at what the sell price might be.
-                bw.Write(symbols[s].largTrdVol); // 15|float largTrdVol|reset+running   |The Size of largest trade
-                bw.Write(symbols[s].prcModeCnt); // 16|float prcModeCnt|overwritten     |Statistics mode price count
-                bw.Write(symbols[s].vol_at_ask); // 17|float vol_at_ask|reset+running   |Volume at ask price
-                bw.Write(symbols[s].vol_no_chg); // 18|float vol_no_chg|reset+running   |Volume with no last change in last size.
-                bw.Write(symbols[s].vol_at_bid); // 19|float vol_at_bid|reset+running   |Volume at bid price
-                bw.Write(symbols[s].BidUpTicks); // 20|float BidUpTicks|reset+running   |How many times the bid went up.
-                bw.Write(symbols[s].BidDnTicks); // 21|float BidDnTicks|reset+running   |How many times the bid went down.
-                bw.Write(symbols[s].sale_count); // 22|float sale_count|reset+running   |How many trades did we see.
-                bw.Write(symbols[s].extIndex00); // 23|float extIndex00|calculated      |6 sec. calculated ATR   
-                bw.Write(symbols[s].extIndex01); // 24|float extIndex01|reset+calculated|6 sec. calculated CCI   
-                bw.Write(symbols[s].extIndex02); // 25|float extIndex02|reset+calculated|6 sec. calculated EMA   
-                bw.Write(symbols[s].extIndex03); // 26|float extIndex03|reset+calculated|6 sec. calculated Kama  
-                bw.Write(symbols[s].extIndex04); // 27|float extIndex04|reset+calculated|6 sec. calculated RSI   
-                bw.Write(symbols[s].extIndex05); // 28|float extIndex05|reset+calculated|6 sec. calculated SMA   
-                bw.Write(symbols[s].extIndex06); // 29|float extIndex06|reset+calculated|6 sec. calculated SarExt
-                bw.Write(symbols[s].extIndex07); // 30|float extIndex07|reset+calculated|6 sec. calculated MACD  
-                bw.Write(symbols[s].extIndex08); // 31|float extIndex08|reset+calculated|6 sec. calculated Bollinger bands
+                bw.Write(symbols[s].volume_day); 
+                bw.Write(symbols[s].volume_ths); 
+                bw.Write(symbols[s].largTrdPrc); 
+                bw.Write(symbols[s].price_high); 
+                bw.Write(symbols[s].price_loww); 
+                bw.Write(symbols[s].price_last); 
+                bw.Write(symbols[s].price_bidd); 
+                bw.Write(symbols[s].price_askk); 
+                bw.Write(symbols[s].volume_bid); 
+                bw.Write(symbols[s].volume_ask); 
+                bw.Write(symbols[s].price_medn); 
+                bw.Write(symbols[s].price_mean); 
+                bw.Write(symbols[s].price_mode); 
+                bw.Write(symbols[s].buyy_price); 
+                bw.Write(symbols[s].sell_price); 
+                bw.Write(symbols[s].largTrdVol); 
+                bw.Write(symbols[s].prcModeCnt); 
+                bw.Write(symbols[s].vol_at_ask); 
+                bw.Write(symbols[s].vol_no_chg); 
+                bw.Write(symbols[s].vol_at_bid); 
+                bw.Write(symbols[s].BidUpTicks); 
+                bw.Write(symbols[s].BidDnTicks); 
+                bw.Write(symbols[s].sale_count); 
+                bw.Write(symbols[s].extIndex00); 
+                bw.Write(symbols[s].extIndex01); 
+                bw.Write(symbols[s].extIndex02); 
+                bw.Write(symbols[s].extIndex03); 
+                bw.Write(symbols[s].extIndex04); 
+                bw.Write(symbols[s].extIndex05); 
+                bw.Write(symbols[s].extIndex06); 
+                bw.Write(symbols[s].extIndex07); 
+                bw.Write(symbols[s].extIndex08); 
             }
             
             byte[] ret = ms.ToArray();
@@ -270,37 +270,37 @@ namespace BM
         /// <summary>Contains the last TickType Submitted to this brief. It is used for volume calculations.</summary>
         public IB_TickType lastTickType = 0;
 
-        public float volume_day; // 0
-        public float volume_ths; // 1
-        public float largTrdPrc; // 2
-        public float price_high; // 3
-        public float price_loww; // 4
-        public float price_last; // 5
-        public float price_bidd; // 6
-        public float price_askk; // 7
-        public float volume_bid; // 8
-        public float volume_ask; // 9
-        public float price_medn; // 10
-        public float price_mean; // 11
-        public float price_mode; // 12
-        public float buyy_price; // 13
-        public float sell_price; // 14
-        public float largTrdVol; // 15
-        public float prcModeCnt; // 16
-        public float vol_at_ask; // 17
-        public float vol_no_chg; // 18
-        public float vol_at_bid; // 19
-        public float BidUpTicks; // 20
-        public float BidDnTicks; // 21
-        public float sale_count; // 22
-        public float extIndex00; // 23
-        public float extIndex01; // 24
-        public float extIndex02; // 25
-        public float extIndex03; // 26
-        public float extIndex04; // 27
-        public float extIndex05; // 28
-        public float extIndex06; // 29
-        public float extIndex07; // 30
-        public float extIndex08; // 31
+        public float volume_day; // 0 |float volume_day|carried         |days total volume
+        public float volume_ths; // 1 |float volume_ths|reset+running   |volume for this time period (calculated)
+        public float largTrdPrc; // 2 |float largTrdPrc|reset+running   |price at when largest trade 
+        public float price_high; // 3 |float price_high|reset+running   |highest price in period
+        public float price_loww; // 4 |float price_loww|reset+running   |lowest price in period
+        public float price_last; // 5 |float price_last|carried         |last trade price
+        public float price_bidd; // 6 |float price_bidd|carried         |last bid price
+        public float price_askk; // 7 |float price_askk|carried         |last ask price
+        public float volume_bid; // 8 |float volume_bid|carried         |last bid size
+        public float volume_ask; // 9 |float volume_ask|carried         |last ask size
+        public float price_medn; // 10|float price_medn|overwritten     |Statistics median for price
+        public float price_mean; // 11|float price_mean|overwritten     |Statistics mean for price
+        public float price_mode; // 12|float price_mode|overwritten     |Statistics mode for price
+        public float buyy_price; // 13|float buyy_price|carried         |A guess at what the buy price might be.
+        public float sell_price; // 14|float sell_price|carried         |A guess at what the sell price might be.
+        public float largTrdVol; // 15|float largTrdVol|reset+running   |The Size of largest trade
+        public float prcModeCnt; // 16|float prcModeCnt|overwritten     |Statistics mode price count
+        public float vol_at_ask; // 17|float vol_at_ask|reset+running   |Volume at ask price
+        public float vol_no_chg; // 18|float vol_no_chg|reset+running   |Volume with no last change in last size.
+        public float vol_at_bid; // 19|float vol_at_bid|reset+running   |Volume at bid price
+        public float BidUpTicks; // 20|float BidUpTicks|reset+running   |How many times the bid went up.
+        public float BidDnTicks; // 21|float BidDnTicks|reset+running   |How many times the bid went down.
+        public float sale_count; // 22|float sale_count|reset+running   |How many trades did we see.
+        public float extIndex00; // 23|float extIndex00|calculated      |6 sec. calculated ATR   
+        public float extIndex01; // 24|float extIndex01|reset+calculated|6 sec. calculated CCI   
+        public float extIndex02; // 25|float extIndex02|reset+calculated|6 sec. calculated EMA   
+        public float extIndex03; // 26|float extIndex03|reset+calculated|6 sec. calculated Kama  
+        public float extIndex04; // 27|float extIndex04|reset+calculated|6 sec. calculated RSI   
+        public float extIndex05; // 28|float extIndex05|reset+calculated|6 sec. calculated SMA   
+        public float extIndex06; // 29|float extIndex06|reset+calculated|6 sec. calculated SarExt
+        public float extIndex07; // 30|float extIndex07|reset+calculated|6 sec. calculated MACD  
+        public float extIndex08; // 31|float extIndex08|reset+calculated|6 sec. calculated Bollinger Bands
     }
 }

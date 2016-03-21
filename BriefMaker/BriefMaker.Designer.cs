@@ -31,7 +31,7 @@
         {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(BriefMaker));
-            this.cbErrorChecking = new System.Windows.Forms.CheckBox();
+            this.cbLogErrorChecking = new System.Windows.Forms.CheckBox();
             this.btnRebuildDBfromStreams = new System.Windows.Forms.Button();
             this.panel1 = new System.Windows.Forms.Panel();
             this.progressBar1 = new System.Windows.Forms.ProgressBar();
@@ -48,17 +48,17 @@
             this.statusStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
-            // cbErrorChecking
+            // cbLogErrorChecking
             // 
-            this.cbErrorChecking.AutoSize = true;
-            this.cbErrorChecking.Location = new System.Drawing.Point(12, 11);
-            this.cbErrorChecking.Name = "cbErrorChecking";
-            this.cbErrorChecking.Size = new System.Drawing.Size(241, 17);
-            this.cbErrorChecking.TabIndex = 22;
-            this.cbErrorChecking.Tag = "";
-            this.cbErrorChecking.Text = "Display \'Out of Expected Range Values\'(beta)";
-            this.toolTip1.SetToolTip(this.cbErrorChecking, "Performs extra checking to make sure that values are within an expected range.");
-            this.cbErrorChecking.UseVisualStyleBackColor = true;
+            this.cbLogErrorChecking.AutoSize = true;
+            this.cbLogErrorChecking.Location = new System.Drawing.Point(12, 11);
+            this.cbLogErrorChecking.Name = "cbLogErrorChecking";
+            this.cbLogErrorChecking.Size = new System.Drawing.Size(241, 17);
+            this.cbLogErrorChecking.TabIndex = 22;
+            this.cbLogErrorChecking.Tag = "";
+            this.cbLogErrorChecking.Text = "Display \'Out of Expected Range Values\'(beta)";
+            this.toolTip1.SetToolTip(this.cbLogErrorChecking, "Performs extra checking to make sure that values are within an expected range.");
+            this.cbLogErrorChecking.UseVisualStyleBackColor = true;
             // 
             // btnRebuildDBfromStreams
             // 
@@ -75,7 +75,7 @@
             // 
             this.panel1.Controls.Add(this.progressBar1);
             this.panel1.Controls.Add(this.statusStrip1);
-            this.panel1.Controls.Add(this.cbErrorChecking);
+            this.panel1.Controls.Add(this.cbLogErrorChecking);
             this.panel1.Controls.Add(this.btnRebuildDBfromStreams);
             this.panel1.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.panel1.Location = new System.Drawing.Point(0, 538);
@@ -179,7 +179,7 @@
         #endregion
 
         private System.Windows.Forms.Button btnRebuildDBfromStreams;
-        private System.Windows.Forms.CheckBox cbErrorChecking;
+        private System.Windows.Forms.CheckBox cbLogErrorChecking;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.ToolTip toolTip1;
         private System.Windows.Forms.StatusStrip statusStrip1;

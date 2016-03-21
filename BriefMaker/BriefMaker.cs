@@ -25,27 +25,33 @@ using System.Text;
 
 // Change Log
 // March 2015 - fixed memory leak
-// Feb 2016   - changed how index and indexCt are downloaded
+// Feb   2016 - changed how index and indexCt are downloaded
 namespace BM
 {
     public partial class BriefMaker : Form
     {
         ////////////////// User configurable values. //////////////////
-        /// <summary>(6:25:06) Starting Time To for new Briefs. 6:25:00 brief is not included because time is recorded at the tail.</summary>
+        /// <summary>(6:25:06) Starting Time To for new Briefs. 6:25:00 brief is not included because 
+        /// time is recorded at the tail.</summary>
         readonly TimeSpan BeginRecordTime;
-        /// <summary>(6:25:01) The time when we begin to process stream moments. 6:25:00 StreamMoment is not included because time is recorded in the tail.</summary>
+        /// <summary>(6:25:01) The time when we begin to process stream moments. 6:25:00 StreamMoment 
+        /// is not included because time is recorded in the tail.</summary>
         readonly TimeSpan PreBeginBufferTime;
-        /// <summary>(13:00:00) The time when we end processing of stream moments and recording briefs. We include 13:00:00 since the time is recorded in the tail.</summary>
+        /// <summary>(13:00:00) The time when we end processing of stream moments and recording briefs. 
+        /// We include 13:00:00 since the time is recorded in the tail.</summary>
         readonly TimeSpan EndRecordTime;
-        /// <summary>The number of brief writes to skip if there is not enough data to continue. (in briefs; 200 = 20 minutes)</summary>
+        /// <summary>The number of brief writes to skip if there is not enough data to continue. 
+        /// (in briefs; 200 = 20 minutes)</summary>
         int MaxWaitingLoops = 200;
         /// <summary>The number of Briefs to replay to get formulas/hi/low/last/etc filled. (450=45 minutes)</summary>
         public const int ReplayAmount = 450;
         /// <summary>The number of stocks that we are expected to work with. Has only been tested with 32.</summary>
         public const int StockCount = 32;
-        /// <summary>The number of attributes that describe a stock for a time period. (hi/lo/last/vol/largestTrade/MACD/avg..) Has only been tested with 32.</summary>
+        /// <summary>The number of attributes that describe a stock for a time period like high, low, last, vol,
+        /// largestTrade, MACD, avg.. (Has only been tested with 32.)</summary>
         public const int StockAttribCount = 32;
-        /// <summary>The number of header items in the output. The header contains times/dates/dayOfWeek/MarketIndexes/etc. 32 would be 32(headers slots) * sizeof(float) => 128bytes.</summary>
+        /// <summary>The number of header items in the output. The header contains times, dates, dayOfWeek, 
+        /// MarketIndexes, etc. 32 would be 32(headers slots) * sizeof(float) => 128bytes.</summary>
         public const int HeaderCount = 32;
         /// <summary>The number of indexes we are pulling in. The indexes are saved in the header.</summary>
         public const int IndexCount = 7;
@@ -70,7 +76,8 @@ namespace BM
         /// <summary>This is used to make sure we don't skip any seconds or process the same second twice. 
         /// It should be rounded down to the nearest second.</summary>
         long mostRecentTickSubmitted = 0;
-        /// <summary>For logging to the display, file, or TCPIP connection. This must be initialized in Load so NLog.config is read.</summary>
+        /// <summary>For logging to the display, file, or TCPIP connection. This must be initialized in Load() 
+        /// so NLog.config is read.</summary>
         private static NLog.Logger log, logWCF;
         /// <summary>Extended Indicators</summary>
         ExtendedIndicator extendedIndicators;
@@ -79,7 +86,8 @@ namespace BM
         /// received yet. After data is received for every attribute on every ticker then briefs can be created.
         /// </summary>
         bool[,] waitingForData;
-        /// <summary>Used only for startup. This is so we don't upload briefs when rerunning the most recent briefs from the DB at startup.</summary>
+        /// <summary>Used only for startup. This is so we don't upload briefs when rerunning the most recent 
+        /// briefs from the DB at startup.</summary>
         int onlySaveIfAfter = 0;
         /// <summary>This is the next expected TinyTime. If it is not then a warning is given.</summary>
         int nextExpectedTinyTime;
@@ -128,7 +136,8 @@ namespace BM
 
         private void LoadSystem()
         {
-            System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.Normal;
+            System.Diagnostics.Process.GetCurrentProcess().PriorityClass = 
+                System.Diagnostics.ProcessPriorityClass.Normal;
             suspendWCF = true;
 
             using (var dc = new DataClassesBrfsDataContext())
@@ -140,7 +149,8 @@ namespace BM
                            select symb.Name.Trim()).ToArray();
                 if (stockTickers.Count() != StockCount)
                 {
-                    log.Error("There were {0} stock symbols found. Currently BriefMaker supports a hard value of 32 items.", stockTickers.Count());
+                    log.Error("There were {0} stock symbols found. Currently BriefMaker "
+                        + "supports a hard value of 32 items.", stockTickers.Count());
                     return;
                 }
 
@@ -151,7 +161,8 @@ namespace BM
                            select new Index(s.SymbolID, s.Name.Trim())).ToArray();
                 if (indexes.Count() != IndexCount)
                 {
-                    log.Error("There were {0} index symbols found. Currently BriefMaker supports a hard value of 32 items.", stockTickers.Count());
+                    log.Error("There were {0} index symbols found. Currently BriefMaker " 
+                        + "supports a hard value of 32 items.", stockTickers.Count());
                     return;
                 }
 
@@ -164,9 +175,10 @@ namespace BM
                 /////////// Setup Extended Indicators ///////////
                 extendedIndicators = new ExtendedIndicator(StockCount);
 
-                /////////// Get 450 Briefs back from database so we can replay them to get extended indexes ///////////
+                /////////// Read 450 Briefs back from database so we can replay them to get extended indexes ///////////
                 if (ReplayAmount <= extendedIndicators.MinimumHistorySize)
-                    log.Error("backAmt({0}) is less then ei.MinimumHistorySize({1}) ", ReplayAmount, (extendedIndicators.MinimumHistorySize));
+                    log.Error("backAmt({0}) is less then ei.MinimumHistorySize({1}) ", 
+                        ReplayAmount, (extendedIndicators.MinimumHistorySize));
 
                 // Check to see if there are any brief to pick up where we left off.
                 if (dc.Briefs.Any()) 
@@ -181,7 +193,8 @@ namespace BM
                     int brfIDNearWantedStart = lastBrief.BriefID - ReplayAmount;
 
 
-                    //since mostRecentTickSubmitted might point to a record that does not exist we need to find the next record back
+                    // Since mostRecentTickSubmitted might point to a record that does not 
+                    // exist, we need to find the next record back.
                     var startingBrief = (from b in dc.Briefs
                                        where b.BriefID < brfIDNearWantedStart
                                        orderby b.BriefID descending
@@ -229,9 +242,9 @@ namespace BM
             progressBar1.Value = 0;
             log.Info("Records to Process: {0}", progressBar1.Maximum);
 
-            const int PageSz = 3600; // 1 hour at a time
-            byte[] prevStreamMoments = { 0 };  //hold the last in case we need to duplicate it for gaps 
-            while(true) // run multiple times to make sure there are no stragglers
+            const int PageSz = 3600;            // read in 1 hour at a time
+            byte[] prevStreamMoments = { 0 };   // hold the last in case we need to duplicate it for gaps 
+            while(true)                         // run multiple times to make sure there are no stragglers
             {
                 log.Info("Beginning read of all StreamMoments from DB beginning at {0} ({1})", mostRecentTickSubmitted/1000000, new DateTime(mostRecentTickSubmitted));
 
@@ -244,7 +257,6 @@ namespace BM
                                          //&& s.SnapshotTime.TimeOfDay <= EndRecordTime // very slow
                                          orderby s.SnapshotTime
                                          select s).Take(PageSz);
-
 
                     // Quit if there are no more.
                     if (!streamMoments.Any())
@@ -636,13 +648,13 @@ namespace BM
             {
                 PartialBriefWithPrices bs = briefCoin.processingBrief.symbols[symbID];
 
-                //////////////// Find synthetic last, buy, and sell prices ////////////////
+                //////////////// Fill in any missing last, buy, or sell prices with a synthetic value ////////////////
                 float last; // either the last price or if last is not valid than (ask-.005) or (bid+.005)
-                if (bs.price_last > 0.25F && bs.price_last < 900.0f)
+                if (bs.price_last > 0.03f && bs.price_last < 2000.0f)
                     last = bs.price_last;
-                else if (bs.price_askk > 0.25F && bs.price_askk < 900.0f)
+                else if (bs.price_askk > 0.03f && bs.price_askk < 2000.0f)
                     last = bs.price_askk - 0.005F;
-                else if (bs.price_bidd > 0.25F && bs.price_bidd < 900.0f)
+                else if (bs.price_bidd > 0.03f && bs.price_bidd < 2000.0f)
                     last = bs.price_bidd + 0.005F;
                 else
                 {
@@ -652,59 +664,56 @@ namespace BM
                     //return;
                 }
 
-                // setup buy/sell price for "Relative orders"
-                //float buyy = bs.buyy_price;
-                //float sell = bs.sell_price;
-                float buyyPrc = Math.Abs(bs.buyy_price);
-                float sellPrc = Math.Abs(bs.sell_price);
-                float buyy; // either the buy price or if buy is not valid than (sell_price+.01) or (last + .005)
-                if (buyyPrc > 0.25F && buyyPrc < 900.0f)
-                    buyy = buyyPrc;
-                else if (sellPrc > 0.25F && sellPrc < 900.0f)
-                    buyy = sellPrc + 0.01F;
-                else
-                    buyy = last + 0.005F;
-
-                float sell; // either the buy price or if buy is not valid than (buyy_price-.01) or (last - .005)
-                if (sellPrc > 0.25F && sellPrc < 900.0f)
-                    sell = bs.sell_price;
-                else
-                    sell = buyy - 0.01F;
-
-
                 /////////// Warn for data that is out of range  ////////////////  
-                if (cbErrorChecking.Checked)
+                if (cbLogErrorChecking.Checked)
                 {
                     StringBuilder sb = new StringBuilder();
-                    LogIfOutOfRange(sb, bs.price_last, 0.05F, 1000.0f, symbID, time, "price_last");
-                    LogIfOutOfRange(sb, bs.buyy_price, -1000.0f, 1000.0f, symbID, time, "buyy_price");
-                    LogIfOutOfRange(sb, bs.sell_price, -1000.0f, 1000.0f, symbID, time, "sell_price");
+                    LogIfOutOfRange(sb, bs.price_last, 0.02f, 2000.0f, symbID, time, "price_last");
+                    LogIfOutOfRange(sb, bs.buyy_price, -2000.0f, 2000.0f, symbID, time, "buyy_price");
+                    LogIfOutOfRange(sb, bs.sell_price, -2000.0f, 2000.0f, symbID, time, "sell_price");
                     LogIfOutOfRange(sb, bs.prcModeCnt, 0.00F, 100.0f, symbID, time, "prcModeCnt");
                     LogIfOutOfRange(sb, bs.vol_at_ask, 0.00F, 100.0f, symbID, time, "vol_at_ask");
                     LogIfOutOfRange(sb, bs.vol_no_chg, 0.00F, 100.0f, symbID, time, "vol_no_chg");
                     LogIfOutOfRange(sb, bs.vol_at_bid, 0.00F, 100.0f, symbID, time, "vol_at_bid");
                     LogIfOutOfRange(sb, bs.volume_day, 1.00F, 9999999, symbID, time, "volume_day");
                     LogIfOutOfRange(sb, bs.volume_ths, 0.00F, 999999, symbID, time, "volume_ths");
-                    LogIfOutOfRange(sb, bs.largTrdPrc, 0.05F, 1000.0f, symbID, time, "largTrdPrc");
-                    LogIfOutOfRange(sb, bs.price_high, 0.05F, 1000.0f, symbID, time, "price_high");
-                    LogIfOutOfRange(sb, bs.price_loww, 0.05F, 1000.0f, symbID, time, "price_loww");
-                    LogIfOutOfRange(sb, bs.price_bidd, 0.05F, 1000.0f, symbID, time, "price_bidd");
-                    LogIfOutOfRange(sb, bs.price_askk, 0.05F, 1000.0f, symbID, time, "price_askk");
+                    LogIfOutOfRange(sb, bs.largTrdPrc, 0.02f, 2000.0f, symbID, time, "largTrdPrc");
+                    LogIfOutOfRange(sb, bs.price_high, 0.02f, 2000.0f, symbID, time, "price_high");
+                    LogIfOutOfRange(sb, bs.price_loww, 0.02f, 2000.0f, symbID, time, "price_loww");
+                    LogIfOutOfRange(sb, bs.price_bidd, 0.02f, 2000.0f, symbID, time, "price_bidd");
+                    LogIfOutOfRange(sb, bs.price_askk, 0.02f, 2000.0f, symbID, time, "price_askk");
                     LogIfOutOfRange(sb, bs.volume_bid, 0.00F, 500000, symbID, time, "volume_bid");
                     LogIfOutOfRange(sb, bs.volume_ask, 0.00F, 500000, symbID, time, "volume_ask");
-                    LogIfOutOfRange(sb, bs.price_medn, 0.05F, 1000.0f, symbID, time, "price_medn");
-                    LogIfOutOfRange(sb, bs.price_mean, 0.05F, 1000.0f, symbID, time, "price_mean");
-                    LogIfOutOfRange(sb, bs.price_mode, 0.05F, 1000.0f, symbID, time, "price_mode");
+                    LogIfOutOfRange(sb, bs.price_medn, 0.02f, 2000.0f, symbID, time, "price_medn");
+                    LogIfOutOfRange(sb, bs.price_mean, 0.02f, 2000.0f, symbID, time, "price_mean");
+                    LogIfOutOfRange(sb, bs.price_mode, 0.02f, 2000.0f, symbID, time, "price_mode");
                     LogIfOutOfRange(sb, bs.largTrdVol, 0.00F, 999999, symbID, time, "largTrdVol");
                     if (sb.Length > 0)
                         log.Warn(sb.ToString());
                 }
 
+                // setup buy/sell price for "Relative orders" 
+                float buyyPrc = Math.Abs(bs.buyy_price);
+                float sellPrc = Math.Abs(bs.sell_price);
+                float buyy; // either the buy price or if buy is not valid then (sell_price+.01) or (last + .005)
+                if (buyyPrc > 0.03f && buyyPrc < 2000.0f)
+                    buyy = buyyPrc;
+                else if (sellPrc > 0.03f && sellPrc < 2000.0f)
+                    buyy = sellPrc + 0.01F;
+                else
+                    buyy = last + 0.005F;
+
+                float sell; // either the buy price or if buy is not valid then (buyy_price-.01) or (last - .005)
+                if (sellPrc > 0.03f && sellPrc < 2000.0f)
+                    sell = bs.sell_price;
+                else
+                    sell = buyy - 0.01F;
+
                 // removed on 4/21/2014 - this would slightly randomize the buy and sell price
                 ///////////// Slightly randomize the buy/sell prices  ////////////////
-                //if (buyy > 0.25f)
+                //if (buyy > 0.03f)
                 //    buyy += (float)((Ryan.utils.rand.NextDouble() - .5) / 3000.0);
-                //if (sell > 0.25f)
+                //if (sell > 0.03f)
                 //    sell += (float)((Ryan.utils.rand.NextDouble() - .5) / 3000.0);
 
 
@@ -721,20 +730,38 @@ namespace BM
                 bs.buyy_price = buyy;// removed 4/21/2014 Math.Max(0, buyy); 
                 bs.sell_price = sell;// removed 4/21/2014 Math.Max(0, sell);
 
-                //////////////// Repair values ////////////////////////////
+                //////////////// Repair values as much as possible ////////////////////////////
                 bs.price_high = Math.Max(last, bs.price_high);
-                bs.price_loww = (bs.price_loww > 0.25F) ? Math.Min(last, bs.price_loww) : last;
+                bs.price_loww = (bs.price_loww > 0.03f) ? Math.Min(last, bs.price_loww) : last;
 
-                bs.price_askk = Math.Max(last - 0.05F, bs.price_askk); // bid should never be more the 5 cents less the last
-                bs.price_bidd = (bs.price_bidd > 0.25F) ? Math.Min(last + 0.05F, bs.price_bidd) : last;
+                // As a precaution, in case the bid is not filled in, lets fake bid instead of using 0.
+                // A .3% spread is usually a typical amount for high volume stocks during trading hours.
+                if (bs.price_bidd < 0.03f)
+                    bs.price_bidd = ((bs.price_askk >= 0.03f)? bs.price_askk : bs.price_last) * 0.997f; 
+                if (bs.price_askk < 0.03f)
+                    bs.price_askk = bs.price_bidd * 0.997f; // A .3% spread is usually a typical amount for high volume stocks during trading hours.
 
-                if (bs.largTrdPrc < 0.25F || bs.largTrdPrc > 900.0f)
+                // if bid > ask then its probably because we might have missed something as
+                // this is rare or maybe not even possible because a trade will happen. Lets
+                // just average them and set them equal if this is the case. 
+                if (bs.price_bidd > bs.price_askk)
+                    bs.price_bidd = bs.price_askk = (bs.price_bidd + bs.price_askk) / 2;
+
+                // bid/ask usually should not be more the 1% + 0.01 over/under last (for high volume stocks during trading hours)
+                if (bs.price_askk < last * 0.99f - 0.01f)
+                    bs.price_askk = last * 0.99f - 0.01f;
+                if (bs.price_bidd <= 0.03f)
+                    bs.price_bidd = last;
+                else if (bs.price_bidd > last * 1.01f + 0.01f)
+                    bs.price_bidd = last * 1.01f + 0.01f;
+
+                if (bs.largTrdPrc < 0.03f || bs.largTrdPrc > 2000.0f)
                     bs.largTrdPrc = last;
-                if (bs.price_medn < 0.25F || bs.price_medn > 900.0f)
+                if (bs.price_medn < 0.03f || bs.price_medn > 2000.0f)
                     bs.price_medn = last;
-                if (bs.price_mean < 0.25F || bs.price_mean > 900.0f)
+                if (bs.price_mean < 0.03f || bs.price_mean > 2000.0f)
                     bs.price_mean = last;
-                if (bs.price_mode < 0.25F || bs.price_mode > 900.0f)
+                if (bs.price_mode < 0.03f || bs.price_mode > 2000.0f)
                     bs.price_mode = last;
             }
 
@@ -754,7 +781,7 @@ namespace BM
                 // lets check to see if this is the next expected TT
                 if (nextExpectedTinyTime != tinyTime)
                 {
-                    log.Warn("briefID will not be continuous. The next expected briefID was {0} but processing {1}", nextExpectedTinyTime, (int)tinyTime);
+                    log.Warn("briefID will not be continuous. The next expected briefID was {0} but processing {1}", (TinyTime6Sec)nextExpectedTinyTime, tinyTime);
                     nextExpectedTinyTime = tinyTime;
                 }
                 nextExpectedTinyTime ++;
